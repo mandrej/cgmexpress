@@ -68,14 +68,14 @@
 
       timeBrush
         .width(900)
-        .height(200)
+        .height(100)
         .margins({top: 10, right: 50, bottom: 20, left: 30})
         .dimension(timeDim)
         .group(timeGroup)
         .x(d3.scaleTime().domain([d3.min(data, d => d.timeObj), d3.max(data, d => d.timeObj)]))
         .xUnits(d3.timeHour)
         .brushOn(true)
-        .elasticY(false)
+        .elasticY(true)
         .xAxis().ticks(d3.timeHour.every(1));
         // .yAxisLabel("Count");
 
@@ -96,7 +96,7 @@
             .renderArea(false) // now applied correctly to each child line chart
         )
         .x(d3.scaleTime().domain([minTime, maxTime]))
-        .y(d3.scaleLinear().domain([0, d3.max(data, d => d.value)]))
+        .y(d3.scaleLinear().domain([3, d3.max(data, d => d.value)]))
         .brushOn(false)
         .elasticY(true)
         .dimension(seriesDim)
