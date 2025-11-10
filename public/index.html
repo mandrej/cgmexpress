@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Overlapping Daily Line Chart (dc.js)</title>
+  <title>Sibionics CGM</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://unpkg.com/crossfilter2@1.5.4/crossfilter.min.js"></script>
   <script src="https://unpkg.com/dc@4.2.7/dist/dc.min.js"></script>
@@ -13,8 +13,12 @@
   </style>
 </head>
 <body>
-  <h3>Values by Time of Day (Overlapping Days)</h3>
-  <div id="chart"></div>
+  <h3>Sibionics CGM</h3>
+  <div style="display: flex; flex-flow: row nowrap;">
+    <div id="date-filter" class="col"></div>
+    <div id="chart"></div>
+  </div>
+  <div id="time-brush"></div>
 
   <script>
     d3.json('/data').then((original) => {
@@ -25,7 +29,6 @@
       const data = original.map(d => {
         const [date, time] = d.datetime.split(' ');
         return { date: date, time: time, value: +d.value };
-        // return { date, time, value: d[Object.keys(d)[0]] };
       });
 
       // --- 2. Parse date/time ---
@@ -35,19 +38,56 @@
         d.dateObj = parseDate(d.date);
         d.timeObj = parseTime(d.time);
       });
-      
+
+      // Define color scale for consistent colors
+      const uniqueDates = [...new Set(data.map(d => d.date))];
+      const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(uniqueDates);
 
       const ndx = crossfilter(data);
-      // Composite key: [date, time]
+
+      // --- 4. Define date filter chart ---
+      const dateDim = ndx.dimension(d => d.date);
+      const dateGroup = dateDim.group();
+
+      const dateFilter = new dc.RowChart('#date-filter');
+      dateFilter
+        .width(100)
+        .height(400)
+        .margins({top: 20, left: 10, right: 10, bottom: 30})
+        .dimension(dateDim)
+        .group(dateGroup)
+        .ordering(d => d.key)
+        .colors(colorScale)
+        .elasticX(true)
+        .xAxis().ticks(4);
+
+      // --- 5. Define time brush chart ---
+      const timeBrush = new dc.BarChart('#time-brush');
+      const timeDim = ndx.dimension(d => d.timeObj);
+      const timeGroup = timeDim.group();
+
+      timeBrush
+        .width(900)
+        .height(200)
+        .margins({top: 10, right: 50, bottom: 20, left: 30})
+        .dimension(timeDim)
+        .group(timeGroup)
+        .x(d3.scaleTime().domain([d3.min(data, d => d.timeObj), d3.max(data, d => d.timeObj)]))
+        .xUnits(d3.timeHour)
+        .brushOn(true)
+        .elasticY(false)
+        .xAxis().ticks(d3.timeHour.every(1));
+        // .yAxisLabel("Count");
+
+      // --- 6. Define main chart ---
       const seriesDim = ndx.dimension(d => [d.date, d.timeObj]);
       const valueGroup = seriesDim.group().reduceSum(d => d.value);
 
-      // --- 4. Define chart ---
-      const chart = new dc.SeriesChart('#chart');
+      const mainChart = new dc.SeriesChart('#chart');
       const minTime = d3.min(data, d => d.timeObj);
       const maxTime = d3.max(data, d => d.timeObj);
 
-      chart
+      mainChart
         .width(800)
         .height(400)
         .chart(subChart =>
@@ -56,6 +96,7 @@
             .renderArea(false) // now applied correctly to each child line chart
         )
         .x(d3.scaleTime().domain([minTime, maxTime]))
+        .y(d3.scaleLinear().domain([0, d3.max(data, d => d.value)]))
         .brushOn(false)
         .elasticY(true)
         .dimension(seriesDim)
@@ -63,8 +104,19 @@
         .seriesAccessor(d => d.key[0])  // each date = series
         .keyAccessor(d => d.key[1])     // time = x
         .valueAccessor(d => d.value)    // value = y
-        .legend(dc.legend().x(70).y(10).itemHeight(13).gap(5));
-      
+        .colors(colorScale);
+        // .legend(dc.legend().x(70).y(10).itemHeight(13).gap(5));
+
+      // Update main chart domain based on time brush selection
+      timeBrush.on('filtered', function(chart, filter) {
+        if (filter) {
+          mainChart.x().domain(filter);
+        } else {
+          mainChart.x().domain([minTime, maxTime]);
+        }
+        dc.redrawAll();
+      });
+
       dc.renderAll();
     }
   </script>
