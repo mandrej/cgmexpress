@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Overlapping Daily Line Chart (dc.js)</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/crossfilter2@1.5.4/crossfilter.min.js"></script>
+  <script src="https://unpkg.com/dc@4.2.7/dist/dc.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/dc@4.2.7/dist/style/dc.min.css"/>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background: #f9f9f9; }
+    #chart { width: 800px; height: 400px; }
+  </style>
+</head>
+<body>
+  <h3>Values by Time of Day (Overlapping Days)</h3>
+  <div id="chart"></div>
+
+  <script>
+    d3.json('/data').then((original) => {
+      drawChart(original);
+    });
+    
+    const drawChart = (original) => {
+      const data = original.map(d => {
+        const [date, time] = d.datetime.split(' ');
+        return { date: date, time: time, value: +d.value };
+        // return { date, time, value: d[Object.keys(d)[0]] };
+      });
+
+      // --- 2. Parse date/time ---
+      const parseDate = d3.timeParse('%m/%d/%Y');
+      const parseTime = d3.timeParse('%H:%M');
+      data.forEach(d => {
+        d.dateObj = parseDate(d.date);
+        d.timeObj = parseTime(d.time);
+      });
+      
+
+      const ndx = crossfilter(data);
+      // Composite key: [date, time]
+      const seriesDim = ndx.dimension(d => [d.date, d.timeObj]);
+      const valueGroup = seriesDim.group().reduceSum(d => d.value);
+
+      // --- 4. Define chart ---
+      const chart = new dc.SeriesChart('#chart');
+      const minTime = d3.min(data, d => d.timeObj);
+      const maxTime = d3.max(data, d => d.timeObj);
+
+      chart
+        .width(800)
+        .height(400)
+        .chart(subChart =>
+          new dc.LineChart(subChart)
+            .curve(d3.curveMonotoneX)
+            .renderArea(false) // now applied correctly to each child line chart
+        )
+        .x(d3.scaleTime().domain([minTime, maxTime]))
+        .brushOn(false)
+        .elasticY(true)
+        .dimension(seriesDim)
+        .group(valueGroup)
+        .seriesAccessor(d => d.key[0])  // each date = series
+        .keyAccessor(d => d.key[1])     // time = x
+        .valueAccessor(d => d.value)    // value = y
+        .legend(dc.legend().x(70).y(10).itemHeight(13).gap(5));
+      
+      dc.renderAll();
+    }
+  </script>
+</body>
+</html>
