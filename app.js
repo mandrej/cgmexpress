@@ -14,8 +14,8 @@ app.get('/', (req, res) => {
 
 app.get('/data', (req, res) => {
   const results = [];
-  fs.createReadStream(path.join(__dirname, 'data.csv'))
-    .pipe(csv())
+  fs.createReadStream(path.join(__dirname, 'data.tsv'))
+    .pipe(csv({ headers: ['datetime', 'value'], separator: '\t'})
     .on('data', (data) =>  results.push(data))
     .on('end', () => {
         res.json(results);
@@ -23,7 +23,7 @@ app.get('/data', (req, res) => {
     .on('error', (error) => {
         console.error('Error reading CSV:', error);
         res.status(500).send('Error processing CSV file.');
-    });
+    }));
 });
 
 app.listen(PORT, () => {

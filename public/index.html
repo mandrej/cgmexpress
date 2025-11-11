@@ -27,18 +27,24 @@
     
     const drawChart = (original) => {
       const data = original.map(d => {
-        const [date, time] = d.datetime.split(' ');
-        return { date: date, time: time, value: +d.value };
+        const [date, time, _] = d.datetime.split(' ');
+        if (isNaN(+d.value)) {
+          return null;
+        } else {
+          return { date: date, time: time, value: +d.value };
+        }
       });
-
+      if (data[0] === null) data.shift(); // remove first element
+      
       // --- 2. Parse date/time ---
-      const parseDate = d3.timeParse('%m/%d/%Y');
+      const formatDate = d3.timeFormat("%a, %b %d, %Y");
+      const parseDate = d3.timeParse('%d-%m-%Y');
       const parseTime = d3.timeParse('%H:%M');
       data.forEach(d => {
         d.dateObj = parseDate(d.date);
         d.timeObj = parseTime(d.time);
       });
-
+      
       // Define color scale for consistent colors
       const uniqueDates = [...new Set(data.map(d => d.date))];
       const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(uniqueDates);
@@ -51,11 +57,12 @@
 
       const dateFilter = new dc.RowChart('#date-filter');
       dateFilter
-        .width(100)
+        .width(130)
         .height(400)
-        .margins({top: 20, left: 10, right: 10, bottom: 30})
+        .margins({top: 20, left: 10, right: 0, bottom: 30})
         .dimension(dateDim)
         .group(dateGroup)
+        // .label(d => formatDate(d.key))
         .ordering(d => d.key)
         .colors(colorScale)
         .elasticX(true)
@@ -67,7 +74,7 @@
       const timeGroup = timeDim.group();
 
       timeBrush
-        .width(900)
+        .width(920)
         .height(100)
         .margins({top: 10, right: 50, bottom: 20, left: 30})
         .dimension(timeDim)
