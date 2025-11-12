@@ -74,8 +74,11 @@
         const maxCount = d3.max(dateData, d => d.count);
         const dateScale = d3.scaleLinear().domain([0, maxCount]).range([0, 40]);
 
+        const parseDate = d3.timeParse('%Y-%m-%d');
+        const formatDate = d3.timeFormat('%a, %b %d, %Y');
+
         const dateSvg = d3.select('#date-filter').append('svg')
-          .attr('width', 160)
+          .attr('width', 170)
           .attr('height', 400);
 
         const dateBars = dateSvg.selectAll('rect')
@@ -101,7 +104,7 @@
           .enter().append('text')
           .attr('x', 60)
           .attr('y', (d, i) => i * 25 + 35)
-          .text(d => d.date)
+          .text(d => formatDate(parseDate(d.date)))
           .style('font-size', '12px');
 
         // Time brush chart
@@ -111,7 +114,7 @@
 
         const timeScale = d3.scaleTime()
           .domain([d3.min(data, d => d.timeObj), d3.max(data, d => d.timeObj)])
-          .range([margin.left, 1000 - margin.right]);
+          .range([margin.left, 840 - margin.right]);
 
         const timeAxis = d3.axisBottom(timeScale).ticks(d3.timeHour.every(1));
 
@@ -136,7 +139,7 @@
 
         // Brush
         const brush = d3.brushX()
-          .extent([[margin.left, 0], [1000 - margin.right, 100 - margin.bottom]])
+          .extent([[margin.left, 20], [840 - margin.right, 80]])
           .on('brush end', brushed);
 
         timeSvg.append('g')
