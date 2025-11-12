@@ -11,7 +11,7 @@
         background: #f9f9f9;
       }
       #chart {
-        width: 800px;
+        width: 1000px;
         height: 400px;
       }
     </style>
@@ -51,8 +51,8 @@
       });
 
       const drawChart = (data) => {
-        const margin = {top: 20, right: 20, bottom: 20, left: 20};
-        const width = 800 - margin.left - margin.right;
+        const margin = {top: 20, right: 20, bottom: 20, left: 30};
+        const width = 1000 - margin.left - margin.right;
         const height = 400 - margin.top - margin.bottom;
 
         // Color scale
@@ -72,10 +72,10 @@
         const dateGroup = d3.rollup(data, v => v.length, d => d.date);
         const dateData = Array.from(dateGroup, ([date, count]) => ({date, count}));
         const maxCount = d3.max(dateData, d => d.count);
-        const dateScale = d3.scaleLinear().domain([0, maxCount]).range([0, 100]);
+        const dateScale = d3.scaleLinear().domain([0, maxCount]).range([0, 40]);
 
         const dateSvg = d3.select('#date-filter').append('svg')
-          .attr('width', 130)
+          .attr('width', 160)
           .attr('height', 400);
 
         const dateBars = dateSvg.selectAll('rect')
@@ -99,19 +99,19 @@
         dateSvg.selectAll('text')
           .data(dateData)
           .enter().append('text')
-          .attr('x', 115)
+          .attr('x', 60)
           .attr('y', (d, i) => i * 25 + 35)
           .text(d => d.date)
           .style('font-size', '12px');
 
         // Time brush chart
         const timeSvg = d3.select('#time-brush').append('svg')
-          .attr('width', 930)
+          .attr('width', 1000)
           .attr('height', 100);
 
         const timeScale = d3.scaleTime()
           .domain([d3.min(data, d => d.timeObj), d3.max(data, d => d.timeObj)])
-          .range([margin.left, 930 - margin.right]);
+          .range([margin.left, 1000 - margin.right]);
 
         const timeAxis = d3.axisBottom(timeScale).ticks(d3.timeHour.every(1));
 
@@ -130,13 +130,13 @@
           .enter().append('rect')
           .attr('x', d => timeScale(d.time))
           .attr('y', d => 100 - margin.bottom - timeHeightScale(d.count))
-          .attr('width', 10)
+          .attr('width', 20)
           .attr('height', d => timeHeightScale(d.count))
           .attr('fill', 'steelblue');
 
         // Brush
         const brush = d3.brushX()
-          .extent([[margin.left, 0], [930 - margin.right, 100 - margin.bottom]])
+          .extent([[margin.left, 0], [1000 - margin.right, 100 - margin.bottom]])
           .on('brush end', brushed);
 
         timeSvg.append('g')
@@ -155,12 +155,12 @@
 
         // Main chart
         const mainSvg = d3.select('#chart').append('svg')
-          .attr('width', 800)
+          .attr('width', 840)
           .attr('height', 400);
 
         const xScale = d3.scaleTime()
           .domain(timeDomain)
-          .range([margin.left, 800 - margin.right]);
+          .range([margin.left, 840 - margin.right]);
 
         const yScale = d3.scaleLinear()
           .domain([d3.min(data, d => d.value), d3.max(data, d => d.value)])
@@ -218,7 +218,7 @@
           // Update y domain
           const minVal = d3.min(filtered, d => d.value) || 0;
           const maxVal = d3.max(filtered, d => d.value) || 100;
-          yScale.domain([minVal, maxVal]);
+          yScale.domain([minVal - 1, maxVal + 1]);
           mainSvg.select('.y-axis').transition().call(yAxis);
 
           // Update x domain
