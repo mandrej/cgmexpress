@@ -22,32 +22,32 @@
 
   <script>
     d3.json('/data').then((original) => {
-      drawChart(original);
-    });
-    
-    const drawChart = (original) => {
+      // --- 2. Parse date/time, value ---
+      const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
+      const parseTime = d3.timeParse('%H:%M');
+      const formatDate = d3.timeFormat("%Y-%m-%d");
+      const formatTime = d3.timeFormat("%H:%M")
       const data = original.map(d => {
-        const [date, time, _] = d.datetime.split(' ');
+        const [datePart, timePart, _] = d.datetime.split(' ');
         if (isNaN(+d.value)) {
           return null;
         } else {
-          return { date: date, time: time, value: +d.value };
+          const dateObj = parseDate(datePart + ' ' + timePart)
+          return { date: formatDate(dateObj), dateObj: dateObj, time: formatTime(dateObj), timeObj: parseTime(timePart), value: +d.value };
         }
       });
       if (data[0] === null) data.shift(); // remove first element
+      console.log(data.slice(0, 3));
       
-      // --- 2. Parse date/time ---
+      drawChart(data);
+    });
+    
+    const drawChart = (data) => {
+      const parseDate = d3.timeParse('%Y-%m-%d');
       const formatDate = d3.timeFormat("%a, %b %d, %Y");
-      const parseDate = d3.timeParse('%d-%m-%Y');
-      const parseTime = d3.timeParse('%H:%M');
-      data.forEach(d => {
-        d.dateObj = parseDate(d.date);
-        d.timeObj = parseTime(d.time);
-      });
-      
       // Define color scale for consistent colors
       const uniqueDates = [...new Set(data.map(d => d.date))];
-      const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(uniqueDates);
+      const colorScale = d3.scaleOrdinal(d3.schemeCategory10).domain(uniqueDates);
 
       const ndx = crossfilter(data);
 
@@ -59,10 +59,10 @@
       dateFilter
         .width(130)
         .height(400)
-        .margins({top: 20, left: 10, right: 0, bottom: 30})
+        .margins({ top: 20, left: 10, right: 0, bottom: 30 })
         .dimension(dateDim)
         .group(dateGroup)
-        // .label(d => formatDate(d.key))
+        .label(d => formatDate(parseDate(d.key))) // american style
         .ordering(d => d.key)
         .colors(colorScale)
         .elasticX(true)
@@ -74,7 +74,7 @@
       const timeGroup = timeDim.group();
 
       timeBrush
-        .width(920)
+        .width(930)
         .height(100)
         .margins({top: 10, right: 50, bottom: 20, left: 30})
         .dimension(timeDim)
@@ -84,7 +84,6 @@
         .brushOn(true)
         .elasticY(true)
         .xAxis().ticks(d3.timeHour.every(1));
-        // .yAxisLabel("Count");
 
       // --- 6. Define main chart ---
       const seriesDim = ndx.dimension(d => [d.date, d.timeObj]);
@@ -103,9 +102,11 @@
             .renderArea(false) // now applied correctly to each child line chart
         )
         .x(d3.scaleTime().domain([minTime, maxTime]))
-        .y(d3.scaleLinear().domain([3, d3.max(data, d => d.value)]))
+        .y(d3.scaleLinear().domain([d3.min(data, d => d.value), d3.max(data, d => d.value)]))
         .brushOn(false)
         .elasticY(true)
+        .renderHorizontalGridLines(true)
+        .renderVerticalGridLines(true)
         .dimension(seriesDim)
         .group(valueGroup)
         .seriesAccessor(d => d.key[0])  // each date = series
