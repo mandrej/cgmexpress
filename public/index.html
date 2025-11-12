@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Sibionics CGM</title>
+    <title>SIBIONICS CGM</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/crossfilter2@1.5.4/crossfilter.min.js"></script>
     <script src="https://unpkg.com/dc@4.2.7/dist/dc.min.js"></script>
@@ -23,7 +23,7 @@
     </style>
   </head>
   <body>
-    <h3>Sibionics CGM</h3>
+    <h3>SIBIONICS CGM</h3>
     <div style="display: flex; flex-flow: row nowrap">
       <div id="date-filter" class="col"></div>
       <div id="chart"></div>
@@ -32,7 +32,7 @@
 
     <script>
       d3.json('/data').then((original) => {
-        // --- 2. Parse date/time, value ---
+        // --- Parse date/time, value ---
         const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
         const parseTime = d3.timeParse('%H:%M');
         const formatDate = d3.timeFormat('%Y-%m-%d');
@@ -53,8 +53,6 @@
           }
         });
         if (data[0] === null) data.shift(); // remove first element
-        console.log(data.slice(0, 3));
-
         drawChart(data);
       });
 
@@ -69,7 +67,7 @@
 
         const ndx = crossfilter(data);
 
-        // --- 4. Define date filter chart ---
+        // --- Define date filter chart ---
         const dateDim = ndx.dimension((d) => d.date);
         const dateGroup = dateDim.group();
 
@@ -87,7 +85,7 @@
           .xAxis()
           .ticks(4);
 
-        // --- 5. Define time brush chart ---
+        // --- Define time brush chart ---
         const timeBrush = new dc.BarChart('#time-brush');
         const timeDim = ndx.dimension((d) => d.timeObj);
         const timeGroup = timeDim.group();
@@ -112,7 +110,7 @@
           .xAxis()
           .ticks(d3.timeHour.every(1));
 
-        // --- 6. Define main chart ---
+        // --- Define main chart ---
         const seriesDim = ndx.dimension((d) => [d.date, d.timeObj]);
         const valueGroup = seriesDim.group().reduceSum((d) => d.value);
 
