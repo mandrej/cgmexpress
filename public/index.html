@@ -16,17 +16,13 @@
         margin: 20px;
         background: #f9f9f9;
       }
-      #chart {
-        width: 800px;
-        height: 400px;
-      }
     </style>
   </head>
   <body>
     <h3>SIBIONICS CGM</h3>
     <div style="display: flex; flex-flow: row nowrap">
       <div id="date-filter" class="col"></div>
-      <div id="chart"></div>
+      <div id="main-chart"></div>
     </div>
     <div id="time-brush"></div>
 
@@ -114,7 +110,7 @@
         const seriesDim = ndx.dimension((d) => [d.date, d.timeObj]);
         const valueGroup = seriesDim.group().reduceSum((d) => d.value);
 
-        const mainChart = new dc.SeriesChart('#chart');
+        const mainChart = new dc.SeriesChart('#main-chart');
         const minTime = d3.min(data, (d) => d.timeObj);
         const maxTime = d3.max(data, (d) => d.timeObj);
 
