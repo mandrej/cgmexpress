@@ -6,6 +6,9 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/crossfilter2@1.5.4/crossfilter.min.js"></script>
     <script src="https://unpkg.com/dc@4.2.7/dist/dc.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.8.0/jszip.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.8.0/xlsx.js"></script>
     <link
       rel="stylesheet"
       href="https://unpkg.com/dc@4.2.7/dist/style/dc.min.css"
@@ -20,6 +23,7 @@
   </head>
   <body>
     <h3>SIBIONICS CGM</h3>
+    <div id="drop-zone" style="width: 200px; height: 50px; background-color: #ccc;">Drag and drop files here</div>
     <div style="display: flex; flex-flow: row nowrap">
       <div id="date-filter" class="col"></div>
       <div id="main-chart"></div>
@@ -27,30 +31,102 @@
     <div id="time-brush"></div>
 
     <script>
-      d3.json('/data').then((original) => {
-        // --- Parse date/time, value ---
+      const dropZone = document.getElementById('drop-zone');
+      dropZone.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+
+      dropZone.addEventListener('drop', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        // File handling logic will go here
+        const files = event.dataTransfer.files;
+        const file = files[0];
+        // console.log('Dropped file name:', file.name);
+        console.log('Dropped file type:', file.type);
+        parseExcel(file).then((original) => {
+          // console.log(original);
+          parseOriginal(original);
+          // You can now use the parsed data here
+        }).catch((error) => {
+          console.error('Error parsing Excel:', error);
+        });
+      });
+
+      const parseExcel = function(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            try {
+              var data = e.target.result;
+              var workbook = XLSX.read(data, {
+                type: 'binary'
+              });
+
+              workbook.SheetNames.forEach(function(sheetName) {
+                const XL_row_object = XLSX.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
+                // result.push({value: XL_row_object['Očitavanje senzora(mmol/L)'], datetime: XL_row_object['Vreme']});
+                resolve(XL_row_object);
+              });
+            } catch (error) {
+              reject(error);
+            }
+          };
+
+          reader.onerror = function(ex) {
+            reject(ex);
+          };
+
+          reader.readAsBinaryString(file);
+        });
+      };
+
+      const parseOriginal = function(original) {
+        const datetime = 'Vreme';
+        const value = 'Očitavanje senzora(mmol/L)';
         const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
         const parseTime = d3.timeParse('%H:%M');
         const formatDate = d3.timeFormat('%Y-%m-%d');
         const formatTime = d3.timeFormat('%H:%M');
+
         const data = original.map((d) => {
-          const [datePart, timePart, _] = d.datetime.split(' ');
-          if (isNaN(+d.value)) {
-            return null;
-          } else {
-            const dateObj = parseDate(datePart + ' ' + timePart);
-            return {
-              date: formatDate(dateObj),
-              dateObj: dateObj,
-              time: formatTime(dateObj),
-              timeObj: parseTime(timePart),
-              value: +d.value,
-            };
-          }
+          const [datePart, timePart, _] = d[datetime].split(' ');
+          const dateObj = parseDate(datePart + ' ' + timePart);
+          return {
+            date: formatDate(dateObj),
+            dateObj: dateObj,
+            time: formatTime(dateObj),
+            timeObj: parseTime(timePart),
+            value: +d[value].replace(',', '.'),
+          };
         });
-        if (data[0] === null) data.shift(); // remove first element
+        // console.log(data);
         drawChart(data);
-      });
+      }
+
+      // d3.json('/data').then((original) => {
+      //   // --- Parse date/time, value ---
+      //   const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
+      //   const parseTime = d3.timeParse('%H:%M');
+      //   const formatDate = d3.timeFormat('%Y-%m-%d');
+      //   const formatTime = d3.timeFormat('%H:%M');
+      //   original.shift(); // remove first element
+
+      //   const data = original.map((d) => {
+      //     const [datePart, timePart, _] = d.datetime.split(' ');
+      //     const dateObj = parseDate(datePart + ' ' + timePart);
+      //     return {
+      //       date: formatDate(dateObj),
+      //       dateObj: dateObj,
+      //       time: formatTime(dateObj),
+      //       timeObj: parseTime(timePart),
+      //       value: +d.value.replace(',', '.'),
+      //     };
+      //   });
+      //   drawChart(data);
+      // });
 
       const drawChart = (data) => {
         const parseDate = d3.timeParse('%Y-%m-%d');
