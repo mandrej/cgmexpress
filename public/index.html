@@ -3,24 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <title>SIBIONICS CGM</title>
+    <link rel="stylesheet" href="style.css">
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-      body {
-        font-family: sans-serif;
-        margin: 20px;
-        background: #f9f9f9;
-      }
-      #chart {
-        width: 1000px;
-        height: 400px;
-      }
-    </style>
   </head>
   <body>
     <h3>SIBIONICS CGM</h3>
-    <div style="display: flex; flex-flow: row nowrap">
+    <div id="chart-row">
       <div id="date-filter" class="col"></div>
-      <div id="chart"></div>
+      <div id="main-chart"></div>
     </div>
     <div id="time-brush"></div>
 
@@ -52,7 +42,7 @@
 
       const drawChart = (data) => {
         const margin = {top: 20, right: 20, bottom: 20, left: 30};
-        const width = 1000 - margin.left - margin.right;
+        const width = 800 - margin.left - margin.right;
         const height = 400 - margin.top - margin.bottom;
 
         // Color scale
@@ -109,12 +99,12 @@
 
         // Time brush chart
         const timeSvg = d3.select('#time-brush').append('svg')
-          .attr('width', 1000)
+          .attr('width', 800)
           .attr('height', 100);
 
         const timeScale = d3.scaleTime()
           .domain([d3.min(data, d => d.timeObj), d3.max(data, d => d.timeObj)])
-          .range([margin.left, 840 - margin.right]);
+          .range([margin.left, 800 - margin.right]);
 
         const timeAxis = d3.axisBottom(timeScale).ticks(d3.timeHour.every(1));
 
@@ -139,7 +129,7 @@
 
         // Brush
         const brush = d3.brushX()
-          .extent([[margin.left, 20], [840 - margin.right, 80]])
+          .extent([[margin.left, 20], [800 - margin.right, 80]])
           .on('brush end', brushed);
 
         timeSvg.append('g')
@@ -157,13 +147,13 @@
         }
 
         // Main chart
-        const mainSvg = d3.select('#chart').append('svg')
-          .attr('width', 840)
+        const mainSvg = d3.select('#main-chart').append('svg')
+          .attr('width', 800)
           .attr('height', 400);
 
         const xScale = d3.scaleTime()
           .domain(timeDomain)
-          .range([margin.left, 840 - margin.right]);
+          .range([margin.left, 800 - margin.right]);
 
         const yScale = d3.scaleLinear()
           .domain([d3.min(data, d => d.value), d3.max(data, d => d.value)])

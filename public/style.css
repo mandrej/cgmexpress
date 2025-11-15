@@ -1,3 +1,20 @@
 body {
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: sans-serif;
+    margin: 20px;
+    background: #fff;
+}
+
+#chart-row {
+    display: flex;
+    flex-flow: row nowrap;
+}
+
+#main-chart {
+    width: 800px;
+    height: 400px;
+}
+
+#time-brush {
+    width: 800;
+    margin-left: 170px;
 }
