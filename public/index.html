@@ -13,22 +13,19 @@
       rel="stylesheet"
       href="https://unpkg.com/dc@4.2.7/dist/style/dc.min.css"
     />
-    <style>
-      body {
-        font-family: sans-serif;
-        margin: 20px;
-        background: #f9f9f9;
-      }
-    </style>
+    <link rel="stylesheet" href="style.css"/>
+
   </head>
   <body>
-    <h3>SIBIONICS CGM</h3>
-    <div id="drop-zone" style="width: 200px; height: 50px; background-color: #ccc;">Drag and drop files here</div>
-    <div style="display: flex; flex-flow: row nowrap">
-      <div id="date-filter" class="col"></div>
+    <h3 style="margin-left: 10px;">SIBIONICS CGM</h3>
+    <div class="row"">
+      <div id="date-filter"></div>
       <div id="main-chart"></div>
     </div>
-    <div id="time-brush"></div>
+    <div class="row"">
+      <div id="drop-zone" style="width: 120px; height: 50px; margin-top: 10px; margin-left: 10px; background-color: #ccc; text-align: center; padding-top: 20px;">Drag and drop files here</div>
+      <div id="time-brush"></div>
+    </div>
 
     <script>
       const dropZone = document.getElementById('drop-zone');
@@ -44,12 +41,10 @@
         // File handling logic will go here
         const files = event.dataTransfer.files;
         const file = files[0];
-        // console.log('Dropped file name:', file.name);
+
         console.log('Dropped file type:', file.type);
         parseExcel(file).then((original) => {
-          // console.log(original);
           parseOriginal(original);
-          // You can now use the parsed data here
         }).catch((error) => {
           console.error('Error parsing Excel:', error);
         });
@@ -67,7 +62,6 @@
 
               workbook.SheetNames.forEach(function(sheetName) {
                 const XL_row_object = XLSX.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
-                // result.push({value: XL_row_object['Očitavanje senzora(mmol/L)'], datetime: XL_row_object['Vreme']});
                 resolve(XL_row_object);
               });
             } catch (error) {
@@ -102,31 +96,31 @@
             value: +d[value].replace(',', '.'),
           };
         });
-        // console.log(data);
+        // console.log(data);s
         drawChart(data);
       }
 
-      // d3.json('/data').then((original) => {
-      //   // --- Parse date/time, value ---
-      //   const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
-      //   const parseTime = d3.timeParse('%H:%M');
-      //   const formatDate = d3.timeFormat('%Y-%m-%d');
-      //   const formatTime = d3.timeFormat('%H:%M');
-      //   original.shift(); // remove first element
+      d3.json('/data').then((original) => {
+        // --- Parse date/time, value ---
+        const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
+        const parseTime = d3.timeParse('%H:%M');
+        const formatDate = d3.timeFormat('%Y-%m-%d');
+        const formatTime = d3.timeFormat('%H:%M');
+        original.shift(); // remove first element
 
-      //   const data = original.map((d) => {
-      //     const [datePart, timePart, _] = d.datetime.split(' ');
-      //     const dateObj = parseDate(datePart + ' ' + timePart);
-      //     return {
-      //       date: formatDate(dateObj),
-      //       dateObj: dateObj,
-      //       time: formatTime(dateObj),
-      //       timeObj: parseTime(timePart),
-      //       value: +d.value.replace(',', '.'),
-      //     };
-      //   });
-      //   drawChart(data);
-      // });
+        const data = original.map((d) => {
+          const [datePart, timePart, _] = d.datetime.split(' ');
+          const dateObj = parseDate(datePart + ' ' + timePart);
+          return {
+            date: formatDate(dateObj),
+            dateObj: dateObj,
+            time: formatTime(dateObj),
+            timeObj: parseTime(timePart),
+            value: +d.value.replace(',', '.'),
+          };
+        });
+        drawChart(data);
+      });
 
       const drawChart = (data) => {
         const parseDate = d3.timeParse('%Y-%m-%d');
@@ -163,7 +157,7 @@
         const timeGroup = timeDim.group();
 
         timeBrush
-          .width(930)
+          .width(800)
           .height(100)
           .margins({ top: 10, right: 50, bottom: 20, left: 30 })
           .dimension(timeDim)
