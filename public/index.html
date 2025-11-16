@@ -4,15 +4,8 @@
     <meta charset="UTF-8" />
     <title>SIBIONICS CGM</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://unpkg.com/crossfilter2@1.5.4/crossfilter.min.js"></script>
-    <script src="https://unpkg.com/dc@4.2.7/dist/dc.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.8.0/jszip.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.8.0/xlsx.js"></script>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/dc@4.2.7/dist/style/dc.min.css"
-    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -123,107 +116,173 @@
         drawChart(data);
       });
 
-      const drawChart = (data) => {
-        const uniqueDates = [...new Set(data.map((d) => d.date))];
+      let selectedDates = new Set();
+      let timeRange = null;
+
+      const drawChart = (originalData) => {
+        const data = [...originalData]; // copy
+        const uniqueDates = [...new Set(data.map((d) => d.date))].sort();
         const colorScale = d3
           .scaleOrdinal(d3.schemeCategory10)
           .domain(uniqueDates);
 
-        const ndx = crossfilter(data);
+        // Initially select all dates
+        selectedDates = new Set(uniqueDates);
 
-        // --- Define date filter chart ---
-        const dateDim = ndx.dimension((d) => d.date);
-        const dateGroup = dateDim.group();
+        const filterData = () => {
+          return data.filter(d => selectedDates.has(d.date) &&
+            (!timeRange || (d.timeObj >= timeRange[0] && d.timeObj <= timeRange[1])));
+        };
 
-        const dateFilter = new dc.RowChart('#date-filter');
-        dateFilter
-          .width(130)
-          .height(400)
-          .margins({ top: 20, left: 10, right: 0, bottom: 30 })
-          .dimension(dateDim)
-          .group(dateGroup)
-          .label((d) => formatDateLabel(parseDateLabel(d.key)))
-          .ordering((d) => d.key)
-          .colors(colorScale)
-          .elasticX(true)
-          .xAxis()
-          .ticks(4);
+        const updateCharts = () => {
+          const filteredData = filterData();
+          drawDateFilter(uniqueDates);
+          drawTimeBrush(filteredData);
+          drawMainChart(filteredData);
+        };
 
-        // --- Define time brush chart ---
-        const timeBrush = new dc.BarChart('#time-brush');
-        const timeDim = ndx.dimension((d) => d.timeObj);
-        const timeGroup = timeDim.group();
+        const drawDateFilter = (dates) => {
+          const container = d3.select('#date-filter');
+          container.selectAll('*').remove();
 
-        timeBrush
-          .width(1000)
-          .height(100)
-          .margins({ top: 10, right: 50, bottom: 20, left: 30 })
-          .dimension(timeDim)
-          .group(timeGroup)
-          .x(
-            d3
-              .scaleTime()
-              .domain([
-                d3.min(data, (d) => d.timeObj),
-                d3.max(data, (d) => d.timeObj),
-              ])
-          )
-          .xUnits(d3.timeHour)
-          .brushOn(true)
-          .elasticY(true)
-          .xAxis()
-          .ticks(d3.timeHour.every(1));
+          const items = container.selectAll('.date-item')
+            .data(dates)
+            .enter().append('div')
+            .attr('class', 'date-item')
+            .style('cursor', 'pointer')
+            .style('padding', '5px')
+            .style('background-color', d => selectedDates.has(d) ? colorScale(d) : '#f0f0f0')
+            .style('color', d => selectedDates.has(d) ? 'white' : 'black')
+            .style('margin-bottom', '2px')
+            .text(d => formatDateLabel(parseDateLabel(d)))
+            .on('click', function(event, d) {
+              if (selectedDates.has(d)) {
+                selectedDates.delete(d);
+              } else {
+                selectedDates.add(d);
+              }
+              updateCharts();
+            });
+        };
 
-        // --- Define main chart ---
-        const seriesDim = ndx.dimension((d) => [d.date, d.timeObj]);
-        const valueGroup = seriesDim.group().reduceSum((d) => d.value);
+        const drawTimeBrush = (filteredData) => {
+          const container = d3.select('#time-brush');
+          container.selectAll('*').remove();
 
-        const mainChart = new dc.SeriesChart('#main-chart');
-        const minTime = d3.min(data, (d) => d.timeObj);
-        const maxTime = d3.max(data, (d) => d.timeObj);
+          const margin = { top: 10, right: 50, bottom: 20, left: 30 };
+          const width = 1000 - margin.left - margin.right;
+          const height = 100 - margin.top - margin.bottom;
 
-        mainChart
-          .width(1000)
-          .height(400)
-          .chart((subChart) =>
-            new dc.LineChart(subChart)
-              .curve(d3.curveMonotoneX)
-              .renderArea(false)
-              .renderDataPoints(false)
-              .label((d) => d.value)
-          )
-          .x(d3.scaleTime().domain([minTime, maxTime]))
-          .y(
-            d3
-              .scaleLinear()
-              .domain([
-                d3.min(data, (d) => d.value),
-                d3.max(data, (d) => d.value),
-              ])
-          )
-          .elasticY(true)
-          .brushOn(false)
-          .renderHorizontalGridLines(true)
-          .renderVerticalGridLines(true)
-          .dimension(seriesDim)
-          .group(valueGroup)
-          .seriesAccessor((d) => d.key[0]) // each date = series
-          .keyAccessor((d) => d.key[1]) // time = x
-          .valueAccessor((d) => d.value) // value = y
-          .colors(colorScale);
-        // .legend(dc.legend().x(70).y(10).itemHeight(13).gap(5));
+          const svg = container.append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
 
-        // Update main chart domain based on time brush selection
-        timeBrush.on('filtered', function (chart, filter) {
-          if (filter) {
-            mainChart.x().domain(filter);
-          } else {
-            mainChart.x().domain([minTime, maxTime]);
-          }
-          dc.redrawAll();
-        });
+          const x = d3.scaleTime()
+            .domain(d3.extent(filteredData, d => d.timeObj))
+            .range([0, width]);
 
-        dc.renderAll();
+          const y = d3.scaleLinear()
+            .domain([0, d3.max(filteredData, d => d.value)])
+            .range([height, 0]);
+
+          // Group data by hour
+          const hourData = d3.rollup(filteredData,
+            v => d3.mean(v, d => d.value),
+            d => d3.timeHour.floor(d.timeObj)
+          );
+
+          const bars = svg.selectAll('.bar')
+            .data(Array.from(hourData, ([key, value]) => ({ time: key, value })))
+            .enter().append('rect')
+            .attr('class', 'bar')
+            .attr('x', d => x(d.time))
+            .attr('y', d => y(d.value))
+            .attr('width', width / hourData.size)
+            .attr('height', d => height - y(d.value))
+            .attr('fill', 'steelblue');
+
+          svg.append('g')
+            .attr('transform', `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(d3.timeHour.every(1)));
+
+          const brush = d3.brushX()
+            .extent([[0, 0], [width, height]])
+            .on('brush end', (event) => {
+              if (event.selection) {
+                timeRange = event.selection.map(x.invert);
+              } else {
+                timeRange = null;
+              }
+              updateCharts();
+            });
+
+          svg.append('g')
+            .attr('class', 'brush')
+            .call(brush);
+        };
+
+        const drawMainChart = (filteredData) => {
+          const container = d3.select('#main-chart');
+          container.selectAll('*').remove();
+
+          const margin = { top: 20, right: 50, bottom: 30, left: 50 };
+          const width = 1000 - margin.left - margin.right;
+          const height = 400 - margin.top - margin.bottom;
+
+          const svg = container.append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+          const x = d3.scaleTime()
+            .domain(timeRange || d3.extent(filteredData, d => d.timeObj))
+            .range([0, width]);
+
+          const y = d3.scaleLinear()
+            .domain(d3.extent(filteredData, d => d.value))
+            .nice()
+            .range([height, 0]);
+
+          // Group data by date
+          const dateData = d3.group(filteredData, d => d.date);
+
+          const line = d3.line()
+            .x(d => x(d.timeObj))
+            .y(d => y(d.value))
+            .curve(d3.curveMonotoneX);
+
+          svg.selectAll('.line')
+            .data(Array.from(dateData, ([date, values]) => ({ date, values: values.sort((a, b) => a.timeObj - b.timeObj) })))
+            .enter().append('path')
+            .attr('class', 'line')
+            .attr('d', d => line(d.values))
+            .attr('stroke', d => colorScale(d.date))
+            .attr('stroke-width', 2)
+            .attr('fill', 'none');
+
+          svg.append('g')
+            .attr('transform', `translate(0,${height})`)
+            .call(d3.axisBottom(x));
+
+          svg.append('g')
+            .call(d3.axisLeft(y));
+
+          // Grid lines
+          svg.append('g')
+            .attr('class', 'grid')
+            .attr('opacity', 0.3)
+            .call(d3.axisBottom(x).tickSize(height).tickFormat(''));
+
+          svg.append('g')
+            .attr('class', 'grid')
+            .attr('opacity', 0.3)
+            .call(d3.axisLeft(y).tickSize(-width).tickFormat(''));
+        };
+
+        updateCharts();
       };
     </script>
   </body>
