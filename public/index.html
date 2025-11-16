@@ -13,27 +13,36 @@
       rel="stylesheet"
       href="https://unpkg.com/dc@4.2.7/dist/style/dc.min.css"
     />
-    <link rel="stylesheet" href="style.css"/>
-
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h3 style="margin-left: 10px;">SIBIONICS CGM</h3>
-    <div class="row"">
+    <h3 style="margin-left: 10px">SIBIONICS CGM</h3>
+    <div class="row">
       <div id="date-filter"></div>
       <div id="main-chart"></div>
     </div>
-    <div class="row"">
-      <div id="drop-zone" style="width: 120px; height: 50px; margin-top: 10px; margin-left: 10px; background-color: #ccc; text-align: center; padding-top: 20px;">Drag and drop files here</div>
+    <div class="row">
+      <div id="drop-zone">Drag and drop files here</div>
       <div id="time-brush"></div>
     </div>
 
     <script>
+      const datetime = 'Vreme';
+      const value = 'Očitavanje senzora(mmol/L)';
+
+      const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
+      const parseTime = d3.timeParse('%H:%M');
+      const formatDate = d3.timeFormat('%Y-%m-%d');
+      const formatTime = d3.timeFormat('%H:%M');
+      // american style label for main-chart
+      const parseDateLabel = d3.timeParse('%Y-%m-%d');
+      const formatDateLabel = d3.timeFormat('%a, %b %d, %Y');
+
       const dropZone = document.getElementById('drop-zone');
       dropZone.addEventListener('dragover', (event) => {
         event.preventDefault();
         event.stopPropagation();
       });
-
 
       dropZone.addEventListener('drop', (event) => {
         event.preventDefault();
@@ -43,25 +52,29 @@
         const file = files[0];
 
         console.log('Dropped file type:', file.type);
-        parseExcel(file).then((original) => {
-          parseOriginal(original);
-        }).catch((error) => {
-          console.error('Error parsing Excel:', error);
-        });
+        parseExcel(file)
+          .then((original) => {
+            parseOriginal(original);
+          })
+          .catch((error) => {
+            console.error('Error parsing Excel:', error);
+          });
       });
 
-      const parseExcel = function(file) {
+      const parseExcel = function (file) {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = function(e) {
+          reader.onload = function (e) {
             try {
               var data = e.target.result;
               var workbook = XLSX.read(data, {
-                type: 'binary'
+                type: 'binary',
               });
 
-              workbook.SheetNames.forEach(function(sheetName) {
-                const XL_row_object = XLSX.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
+              workbook.SheetNames.forEach(function (sheetName) {
+                const XL_row_object = XLSX.utils.sheet_to_row_object_array(
+                  workbook.Sheets[sheetName]
+                );
                 resolve(XL_row_object);
               });
             } catch (error) {
@@ -69,7 +82,7 @@
             }
           };
 
-          reader.onerror = function(ex) {
+          reader.onerror = function (ex) {
             reject(ex);
           };
 
@@ -77,14 +90,7 @@
         });
       };
 
-      const parseOriginal = function(original) {
-        const datetime = 'Vreme';
-        const value = 'Očitavanje senzora(mmol/L)';
-        const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
-        const parseTime = d3.timeParse('%H:%M');
-        const formatDate = d3.timeFormat('%Y-%m-%d');
-        const formatTime = d3.timeFormat('%H:%M');
-
+      const parseOriginal = function (original) {
         const data = original.map((d) => {
           const [datePart, timePart, _] = d[datetime].split(' ');
           const dateObj = parseDate(datePart + ' ' + timePart);
@@ -98,14 +104,9 @@
         });
         // console.log(data);s
         drawChart(data);
-      }
+      };
 
       d3.json('/data').then((original) => {
-        // --- Parse date/time, value ---
-        const parseDate = d3.timeParse('%d-%m-%Y %H:%M');
-        const parseTime = d3.timeParse('%H:%M');
-        const formatDate = d3.timeFormat('%Y-%m-%d');
-        const formatTime = d3.timeFormat('%H:%M');
         original.shift(); // remove first element
 
         const data = original.map((d) => {
@@ -123,9 +124,6 @@
       });
 
       const drawChart = (data) => {
-        const parseDate = d3.timeParse('%Y-%m-%d');
-        const formatDate = d3.timeFormat('%a, %b %d, %Y');
-        // Define color scale for consistent colors
         const uniqueDates = [...new Set(data.map((d) => d.date))];
         const colorScale = d3
           .scaleOrdinal(d3.schemeCategory10)
@@ -144,7 +142,7 @@
           .margins({ top: 20, left: 10, right: 0, bottom: 30 })
           .dimension(dateDim)
           .group(dateGroup)
-          .label((d) => formatDate(parseDate(d.key))) // american style
+          .label((d) => formatDateLabel(parseDateLabel(d.key)))
           .ordering((d) => d.key)
           .colors(colorScale)
           .elasticX(true)
@@ -157,7 +155,7 @@
         const timeGroup = timeDim.group();
 
         timeBrush
-          .width(800)
+          .width(1000)
           .height(100)
           .margins({ top: 10, right: 50, bottom: 20, left: 30 })
           .dimension(timeDim)
@@ -185,13 +183,14 @@
         const maxTime = d3.max(data, (d) => d.timeObj);
 
         mainChart
-          .width(800)
+          .width(1000)
           .height(400)
-          .chart(
-            (subChart) =>
-              new dc.LineChart(subChart)
-                .curve(d3.curveMonotoneX)
-                .renderArea(false) // now applied correctly to each child line chart
+          .chart((subChart) =>
+            new dc.LineChart(subChart)
+              .curve(d3.curveMonotoneX)
+              .renderArea(false)
+              .renderDataPoints(false)
+              .label((d) => d.value)
           )
           .x(d3.scaleTime().domain([minTime, maxTime]))
           .y(
@@ -203,6 +202,7 @@
               ])
           )
           .elasticY(true)
+          .brushOn(false)
           .renderHorizontalGridLines(true)
           .renderVerticalGridLines(true)
           .dimension(seriesDim)
