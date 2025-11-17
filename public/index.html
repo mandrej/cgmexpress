@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h3 style="margin-left: 10px">SIBIONICS CGM</h3>
+    <h3>SIBIONICS CGM</h3>
     <div class="row">
       <div id="date-filter"></div>
       <div id="main-chart"></div>
@@ -202,7 +202,7 @@
             .attr('y', d => y(d.value))
             .attr('width', width / hourData.size)
             .attr('height', d => height - y(d.value))
-            .attr('fill', 'steelblue');
+            .attr('fill', d => timeRange && d.time >= timeRange[0] && d.time <= timeRange[1] ? 'orange' : 'steelblue');
 
           svg.append('g')
             .attr('transform', `translate(0,${height})`)
@@ -258,7 +258,7 @@
           const container = d3.select('#main-chart');
           container.selectAll('*').remove();
 
-          const margin = { top: 5, right: 50, bottom: 15, left: 50 };
+          const margin = { top: 5, right: 50, bottom: 20, left: 50 };
           const width = 1000 - margin.left - margin.right;
           const height = 400 - margin.top - margin.bottom;
 
@@ -312,13 +312,20 @@
             .attr('opacity', 0.3)
             .call(d3.axisLeft(y).tickSize(-width).tickFormat(''));
 
+          // Add click label background
+          const clickLabelBg = svg.append('rect')
+            .attr('class', 'click-label-bg')
+            .style('fill', '#333')
+            .style('visibility', 'hidden')
+            .style('pointer-events', 'none');
+
           // Add click label
           const clickLabel = svg.append('text')
             .attr('class', 'click-label')
             .attr('x', 10)
             .attr('y', 20)
             .attr('font-size', '12px')
-            .attr('fill', '#333')
+            // .attr('fill', '#fff')
             .style('pointer-events', 'none')
             .text('');
 
@@ -358,9 +365,18 @@
                   .attr('x', x(closestPoint.timeObj) + 5)
                   .attr('y', y(closestPoint.value) - 5)
                   .text(`${formatTime(closestPoint.timeObj)}: ${closestPoint.value} mmol/L`)
+                  .attr('fill', 'white')
+                  .style('visibility', 'visible');
+                const bbox = clickLabel.node().getBBox();
+                clickLabelBg
+                  .attr('x', bbox.x - 2)
+                  .attr('y', bbox.y - 2)
+                  .attr('width', bbox.width + 4)
+                  .attr('height', bbox.height + 4)
                   .style('visibility', 'visible');
               } else {
                 clickLabel.style('visibility', 'hidden');
+                clickLabelBg.style('visibility', 'hidden');
               }
             });
         };
