@@ -192,6 +192,7 @@
               .renderDataPoints(false)
               .label((d) => d.value)
           )
+          .title((d) => `${formatTime(d.key[1])}: ${d.value}`)
           .x(d3.scaleTime().domain([minTime, maxTime]))
           .y(
             d3
