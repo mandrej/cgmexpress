@@ -411,9 +411,13 @@
         const drawMainChart = (filteredData) => {
           const container = d3.select('#main-chart');
           const containerNode = container.node();
+          const filterNode = document.getElementById('date-filter');
           const fallbackRect = { width: 900, height: 520 };
           const containerRect = containerNode
             ? containerNode.getBoundingClientRect()
+            : fallbackRect;
+          const filterRect = filterNode
+            ? filterNode.getBoundingClientRect()
             : fallbackRect;
 
           container.selectAll('*').remove();
@@ -423,9 +427,10 @@
             200,
             containerRect.width - margin.left - margin.right
           );
+          const desiredHeight = filterRect.height || fallbackRect.height;
           const height = Math.max(
             220,
-            containerRect.height - margin.top - margin.bottom
+            desiredHeight - margin.top - margin.bottom
           );
 
           const svg = container

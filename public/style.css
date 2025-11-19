@@ -45,13 +45,13 @@ h3 {
 }
 
 #date-filter {
-  width: 240px;
-  min-width: 240px;
+  width: 200px;
+  min-width: 200px;
   height: 100%;
   overflow-y: auto;
   border: 1px solid #eceff3;
   border-radius: 12px;
-  padding: 16px 12px;
+  padding: 14px 10px;
   box-sizing: border-box;
 }
 
@@ -65,7 +65,7 @@ h3 {
 
 #time-brush {
   width: 100%;
-  min-height: 220px;
+  min-height: 200px;
   border: 1px solid #eceff3;
   border-radius: 12px;
   padding: 12px;
