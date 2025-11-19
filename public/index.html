@@ -16,14 +16,33 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h3 style="margin-left: 10px">SIBIONICS CGM</h3>
-    <div class="row">
-      <div id="date-filter"></div>
-      <div id="main-chart"></div>
-    </div>
-    <div class="row">
-      <div id="drop-zone">Drag and drop files here</div>
-      <div id="time-brush"></div>
+    <div class="container">
+      <h3>SIBIONICS CGM</h3>
+      <div class="dashboard-grid">
+        <!-- Date Filter Sidebar -->
+        <div id="date-filter-container" class="chart-container">
+          <div class="chart-title">Date Filter</div>
+          <div id="date-filter"></div>
+        </div>
+
+        <!-- Main Chart -->
+        <div id="main-chart-container" class="chart-container">
+          <div class="chart-title">Glucose Readings</div>
+          <div id="main-chart"></div>
+        </div>
+
+        <!-- Controls (Drop Zone) -->
+        <div id="controls-container" class="chart-container">
+          <div class="chart-title">Upload Data</div>
+          <div id="drop-zone">Drag and drop files here</div>
+        </div>
+
+        <!-- Time Brush -->
+        <div id="time-brush-container" class="chart-container">
+          <div class="chart-title">Time Filter</div>
+          <div id="time-brush"></div>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -39,14 +58,24 @@
       const formatDateLabel = d3.timeFormat('%a, %b %d, %Y');
 
       const dropZone = document.getElementById('drop-zone');
+
       dropZone.addEventListener('dragover', (event) => {
         event.preventDefault();
         event.stopPropagation();
+        dropZone.classList.add('dragover');
+      });
+
+      dropZone.addEventListener('dragleave', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        dropZone.classList.remove('dragover');
       });
 
       dropZone.addEventListener('drop', (event) => {
         event.preventDefault();
         event.stopPropagation();
+        dropZone.classList.remove('dragover');
+
         // File handling logic will go here
         const files = event.dataTransfer.files;
         const file = files[0];
@@ -59,6 +88,15 @@
           .catch((error) => {
             console.error('Error parsing Excel:', error);
           });
+      });
+
+      // Window resize handler for responsive charts
+      let resizeTimeout;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          dc.renderAll();
+        }, 250);
       });
 
       const parseExcel = function (file) {
@@ -131,15 +169,30 @@
 
         const ndx = crossfilter(data);
 
+        // Get container dimensions for responsive sizing
+        const dateFilterContainer = document.getElementById(
+          'date-filter-container'
+        );
+        const mainChartContainer = document.getElementById(
+          'main-chart-container'
+        );
+        const timeBrushContainer = document.getElementById(
+          'time-brush-container'
+        );
+
+        const dateFilterWidth = dateFilterContainer.clientWidth - 40; // subtract padding
+        const mainChartWidth = mainChartContainer.clientWidth - 40;
+        const timeBrushWidth = timeBrushContainer.clientWidth - 40;
+
         // --- Define date filter chart ---
         const dateDim = ndx.dimension((d) => d.date);
         const dateGroup = dateDim.group();
 
         const dateFilter = new dc.RowChart('#date-filter');
         dateFilter
-          .width(130)
+          .width(dateFilterWidth)
           .height(400)
-          .margins({ top: 20, left: 10, right: 0, bottom: 30 })
+          .margins({ top: 20, left: 10, right: 10, bottom: 30 })
           .dimension(dateDim)
           .group(dateGroup)
           .label((d) => formatDateLabel(parseDateLabel(d.key)))
@@ -155,9 +208,9 @@
         const timeGroup = timeDim.group();
 
         timeBrush
-          .width(1000)
+          .width(timeBrushWidth)
           .height(100)
-          .margins({ top: 10, right: 50, bottom: 20, left: 30 })
+          .margins({ top: 10, right: 50, bottom: 20, left: 40 })
           .dimension(timeDim)
           .group(timeGroup)
           .x(
@@ -183,8 +236,9 @@
         const maxTime = d3.max(data, (d) => d.timeObj);
 
         mainChart
-          .width(1000)
+          .width(mainChartWidth)
           .height(400)
+          .margins({ top: 20, right: 50, bottom: 40, left: 50 })
           .chart((subChart) =>
             new dc.LineChart(subChart)
               .curve(d3.curveMonotoneX)
@@ -194,14 +248,6 @@
           )
           .title((d) => `${formatTime(d.key[1])}: ${d.value}`)
           .x(d3.scaleTime().domain([minTime, maxTime]))
-          .y(
-            d3
-              .scaleLinear()
-              .domain([
-                d3.min(data, (d) => d.value),
-                d3.max(data, (d) => d.value),
-              ])
-          )
           .elasticY(true)
           .brushOn(false)
           .renderHorizontalGridLines(true)
@@ -221,6 +267,36 @@
           } else {
             mainChart.x().domain([minTime, maxTime]);
           }
+          dc.redrawAll();
+        });
+
+        // Add preRedraw hook to dynamically adjust y-axis based on filtered data
+        const updateYAxis = function (chart) {
+          const filteredData = seriesDim.top(Infinity);
+
+          if (filteredData.length > 0) {
+            const values = filteredData.map((d) => d.value);
+            const minValue = d3.min(values);
+            const maxValue = d3.max(values);
+
+            // Add 5% padding to the range for better visualization
+            const padding = (maxValue - minValue) * 0.05;
+            const yMin = Math.max(0, minValue - padding);
+            const yMax = maxValue + padding;
+
+            // Check if y-scale exists, if not create it
+            if (!chart.y()) {
+              chart.y(d3.scaleLinear());
+            }
+            chart.y().domain([yMin, yMax]);
+          }
+        };
+
+        mainChart.on('preRender', updateYAxis);
+        mainChart.on('preRedraw', updateYAxis);
+
+        // Also trigger on date filter changes
+        dateFilter.on('filtered', function () {
           dc.redrawAll();
         });
 
