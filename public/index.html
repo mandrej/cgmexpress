@@ -9,15 +9,17 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h3>SIBIONICS CGM</h3>
-    <div class="row">
-      <div id="date-filter"></div>
-      <div id="main-chart"></div>
+    <div id="dashboard">
+      <h3>SIBIONICS CGM</h3>
+      <div class="row primary">
+        <div id="date-filter"></div>
+        <svg id="main-chart"></svg>
+      </div>
+      <div class="row secondary">
+        <div id="time-brush"></div>
+      </div>
+      <div id="drop-zone">Drag and drop files here</div>
     </div>
-    <div class="row">
-      <div id="time-brush"></div>
-    </div>
-    <div id="drop-zone">Drag and drop files here</div>
 
     <script>
       const datetime = 'Vreme';
@@ -31,6 +33,12 @@
       const parseDateLabel = d3.timeParse('%Y-%m-%d');
       const formatDateLabel = d3.timeFormat('%a, %b %d, %Y');
 
+      const minuteStep = 30;
+      const snapInterval = d3.timeMinute.every(minuteStep) || d3.timeMinute;
+      const getDefaultTimeRange = () => [
+        parseTime('00:00'),
+        parseTime('23:59'),
+      ];
       const dropZone = document.getElementById('drop-zone');
       dropZone.addEventListener('dragover', (event) => {
         event.preventDefault();
@@ -130,8 +138,12 @@
         selectedDates = new Set(uniqueDates);
 
         const filterData = () => {
-          return data.filter(d => selectedDates.has(d.date) &&
-            (!timeRange || (d.timeObj >= timeRange[0] && d.timeObj <= timeRange[1])));
+          return data.filter(
+            (d) =>
+              selectedDates.has(d.date) &&
+              (!timeRange ||
+                (d.timeObj >= timeRange[0] && d.timeObj <= timeRange[1]))
+          );
         };
 
         const updateCharts = () => {
@@ -145,18 +157,22 @@
           const container = d3.select('#date-filter');
           container.selectAll('*').remove();
 
-          const items = container.selectAll('.date-item')
+          const items = container
+            .selectAll('.date-item')
             .data(dates)
-            .enter().append('div')
+            .enter()
+            .append('div')
             .attr('class', 'date-item')
             .style('cursor', 'pointer')
             .style('padding', '5px')
-            .style('background-color', d => selectedDates.has(d) ? colorScale(d) : '#f0f0f0')
-            .style('color', d => selectedDates.has(d) ? 'white' : 'black')
+            .style('background-color', (d) =>
+              selectedDates.has(d) ? colorScale(d) : '#f0f0f0'
+            )
+            .style('color', (d) => (selectedDates.has(d) ? 'white' : 'black'))
             .style('margin-bottom', '2px')
             .style('font-size', '12px')
-            .text(d => formatDateLabel(parseDateLabel(d)))
-            .on('click', function(event, d) {
+            .text((d) => formatDateLabel(parseDateLabel(d)))
+            .on('click', function (event, d) {
               if (selectedDates.has(d)) {
                 selectedDates.delete(d);
               } else {
@@ -170,157 +186,321 @@
           const container = d3.select('#time-brush');
           container.selectAll('*').remove();
 
-          const margin = { top: 10, right: 0, bottom: 20, left: 0 };
-          const width = 1060 - margin.left - margin.right;
-          const height = 100 - margin.top - margin.bottom;
+          if (!filteredData.length) {
+            container
+              .append('div')
+              .attr('class', 'time-brush-empty')
+              .text('No readings available for the current selection.');
+            return;
+          }
 
-          const svg = container.append('svg')
+          const containerNode = container.node();
+          const containerRect = containerNode
+            ? containerNode.getBoundingClientRect()
+            : { width: 952, height: 150 };
+
+          const margin = { top: 24, right: 12, bottom: 32, left: 12 };
+          const width = Math.max(
+            200,
+            containerRect.width - margin.left - margin.right
+          );
+          const height = Math.max(
+            60,
+            containerRect.height - margin.top - margin.bottom
+          );
+
+          const svg = container
+            .append('svg')
             .attr('width', width + margin.left + margin.right)
             .attr('height', height + margin.top + margin.bottom + 20)
             .append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
 
-          const x = d3.scaleTime()
-            .domain(d3.extent(filteredData, d => d.timeObj))
-            .range([0, width]);
+          const [dayStart, dayEnd] = getDefaultTimeRange();
+          const x = d3.scaleTime().domain([dayStart, dayEnd]).range([0, width]);
 
-          const y = d3.scaleLinear()
-            .domain([0, d3.max(filteredData, d => d.value)])
+          const maxValue =
+            d3.max(filteredData, (d) => d.value) ||
+            d3.max(data, (d) => d.value);
+          const y = d3
+            .scaleLinear()
+            .domain([0, Math.max(maxValue * 1.1, 1)])
             .range([height, 0]);
 
-          // Group data by hour
-          const hourData = d3.rollup(filteredData,
-            v => d3.mean(v, d => d.value),
-            d => d3.timeHour.floor(d.timeObj)
-          );
+          const binInterval = d3.timeMinute.every(minuteStep);
+          const densityData = [];
 
-          const bars = svg.selectAll('.bar')
-            .data(Array.from(hourData, ([key, value]) => ({ time: key, value })))
-            .enter().append('rect')
-            .attr('class', 'bar')
-            .attr('x', d => x(d.time))
-            .attr('y', d => y(d.value))
-            .attr('width', width / hourData.size)
-            .attr('height', d => height - y(d.value))
-            .attr('fill', d => timeRange && d.time >= timeRange[0] && d.time <= timeRange[1] ? 'orange' : 'steelblue');
+          if (binInterval) {
+            const bins = binInterval.range(
+              dayStart,
+              d3.timeMinute.offset(dayEnd, minuteStep)
+            );
 
-          svg.append('g')
-            .attr('transform', `translate(0,${height})`)
-            .call(d3.axisBottom(x).ticks(d3.timeHour.every(1)));
-
-          const brush = d3.brushX()
-            .extent([[0, 0], [width, height]])
-            .on('brush end', (event) => {
-              if (event.selection) {
-                // Snap to 30-minute intervals
-                const snappedStart = d3.timeMinute.every(30).floor(x.invert(event.selection[0]));
-                const snappedEnd = d3.timeMinute.every(30).ceil(x.invert(event.selection[1]));
-                timeRange = [snappedStart, snappedEnd];
-
-                // Update brush selection to snapped position
-                d3.select(event.sourceEvent.target)
-                  .transition()
-                  .call(brush.move, [x(snappedStart), x(snappedEnd)]);
-              } else {
-                timeRange = null;
-              }
-              updateCharts();
+            bins.forEach((start) => {
+              const end = d3.timeMinute.offset(start, minuteStep);
+              const bucket = filteredData.filter(
+                (d) => d.timeObj >= start && d.timeObj < end
+              );
+              densityData.push({
+                time: d3.timeMinute.offset(start, minuteStep / 2),
+                value: bucket.length ? d3.mean(bucket, (d) => d.value) : null,
+              });
             });
+          }
 
-          svg.append('g')
-            .attr('class', 'brush')
-            .call(brush);
+          const gradientId = `time-density-gradient-${Date.now()}`;
+          const defs = svg.append('defs');
+          const gradient = defs
+            .append('linearGradient')
+            .attr('id', gradientId)
+            .attr('x1', '0%')
+            .attr('x2', '0%')
+            .attr('y1', '0%')
+            .attr('y2', '100%');
+
+          gradient
+            .append('stop')
+            .attr('offset', '0%')
+            .attr('stop-color', '#4f8ef7')
+            .attr('stop-opacity', 0.65);
+          gradient
+            .append('stop')
+            .attr('offset', '100%')
+            .attr('stop-color', '#4f8ef7')
+            .attr('stop-opacity', 0.05);
+
+          const area = d3
+            .area()
+            .defined((d) => d.value !== null)
+            .x((d) => x(d.time))
+            .y0(height)
+            .y1((d) => y(d.value))
+            .curve(d3.curveMonotoneX);
+
+          svg
+            .append('path')
+            .datum(densityData)
+            .attr('class', 'time-density')
+            .attr('fill', `url(#${gradientId})`)
+            .attr('stroke', '#1f77b4')
+            .attr('stroke-width', 1.5)
+            .attr('d', area);
+
+          svg
+            .append('g')
+            .attr('transform', `translate(0,${height})`)
+            .call(
+              d3
+                .axisBottom(x)
+                .ticks(d3.timeHour.every(2))
+                .tickFormat(formatTime)
+            );
+
+          const selectionOverlay = svg
+            .append('rect')
+            .attr('class', 'time-selection-overlay')
+            .attr('y', 0)
+            .attr('height', height)
+            .attr('rx', 4)
+            .attr('ry', 4)
+            .style('pointer-events', 'none');
+
+          const brush = d3
+            .brushX()
+            .extent([
+              [0, 0],
+              [width, height],
+            ])
+            .on('brush', brushed)
+            .on('end', brushEnded);
+
+          const brushGroup = svg.append('g').attr('class', 'brush').call(brush);
 
           // Add time range display
-          const timeRangeText = svg.append('text')
+          const timeRangeText = svg
+            .append('text')
             .attr('class', 'time-range-text')
             .attr('x', 0)
-            .attr('y', height + 35)
+            .attr('y', height + 45)
             .attr('font-size', '12px')
             .attr('fill', '#333');
 
-          function updateTimeRangeDisplay() {
-            if (timeRange) {
-              const startTime = formatTime(timeRange[0]);
-              const endTime = formatTime(timeRange[1]);
-              timeRangeText.text(`Time Range: ${startTime} - ${endTime}`);
-            } else {
-              const startTime = formatTime(d3.min(filteredData, d => d.timeObj));
-              const endTime = formatTime(d3.max(filteredData, d => d.timeObj));
-              timeRangeText.text(`Time Range: ${startTime} - ${endTime} (All)`);
+          const resetButton = svg
+            .append('text')
+            .attr('class', 'brush-reset')
+            .attr('x', width)
+            .attr('y', -8)
+            .attr('text-anchor', 'end')
+            .text('Reset selection')
+            .style('cursor', 'pointer')
+            .style('fill', '#1f77b4')
+            .on('click', () => {
+              timeRange = null;
+              updateCharts();
+            });
+
+          const updateSelectionOverlay = () => {
+            const [start, end] = timeRange || getDefaultTimeRange();
+            selectionOverlay
+              .attr('x', x(start))
+              .attr('width', Math.max(1, x(end) - x(start)))
+              .style('opacity', timeRange ? 0.35 : 0.15);
+          };
+
+          const updateTimeRangeDisplay = () => {
+            const [start, end] = timeRange || getDefaultTimeRange();
+            const durationMinutes = Math.max(
+              0,
+              Math.round((end - start) / (60 * 1000))
+            );
+            const hours = Math.floor(durationMinutes / 60);
+            const minutes = durationMinutes % 60;
+            const durationLabel =
+              durationMinutes >= 60
+                ? `${hours}h ${minutes ? `${minutes}m` : ''}`.trim()
+                : `${minutes}m`;
+
+            const startTime = formatTime(start);
+            const endTime = formatTime(end);
+            const suffix = timeRange ? '' : ' (all day)';
+            timeRangeText.text(
+              `Time Range: ${startTime} – ${endTime}${suffix} • ${durationLabel}`
+            );
+          };
+
+          function brushed(event) {
+            if (!event.selection || !event.sourceEvent) {
+              return;
             }
+            const [startPx, endPx] = event.selection;
+            let snappedStart = snapInterval.floor(x.invert(startPx));
+            let snappedEnd = snapInterval.ceil(x.invert(endPx));
+
+            if (snappedEnd <= snappedStart) {
+              snappedEnd = snapInterval.offset(snappedStart, 1);
+            }
+
+            timeRange = [snappedStart, snappedEnd];
+            updateSelectionOverlay();
+            updateTimeRangeDisplay();
+
+            brushGroup.call(brush.move, [x(snappedStart), x(snappedEnd)]);
           }
 
+          function brushEnded(event) {
+            if (!event.sourceEvent) {
+              return;
+            }
+            if (!event.selection) {
+              timeRange = null;
+              updateSelectionOverlay();
+              updateTimeRangeDisplay();
+              updateCharts();
+              return;
+            }
+            updateCharts();
+          }
+
+          updateSelectionOverlay();
           updateTimeRangeDisplay();
+
+          const initialRange = timeRange ? timeRange : getDefaultTimeRange();
+          brushGroup.call(brush.move, initialRange.map(x));
         };
 
         const drawMainChart = (filteredData) => {
           const container = d3.select('#main-chart');
+          const containerNode = container.node();
+          const fallbackRect = { width: 900, height: 520 };
+          const containerRect = containerNode
+            ? containerNode.getBoundingClientRect()
+            : fallbackRect;
+
           container.selectAll('*').remove();
 
-          const margin = { top: 5, right: 50, bottom: 20, left: 50 };
-          const width = 1000 - margin.left - margin.right;
-          const height = 400 - margin.top - margin.bottom;
+          const margin = { top: 16, right: 60, bottom: 40, left: 60 };
+          const width = Math.max(
+            200,
+            containerRect.width - margin.left - margin.right
+          );
+          const height = Math.max(
+            220,
+            containerRect.height - margin.top - margin.bottom
+          );
 
-          const svg = container.append('svg')
+          const svg = container
             .attr('width', width + margin.left + margin.right)
             .attr('height', height + margin.top + margin.bottom)
             .append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
 
-          const x = d3.scaleTime()
-            .domain(timeRange || d3.extent(filteredData, d => d.timeObj))
+          const x = d3
+            .scaleTime()
+            .domain(timeRange || d3.extent(filteredData, (d) => d.timeObj))
             .range([0, width]);
 
-          const y = d3.scaleLinear()
-            .domain(d3.extent(filteredData, d => d.value))
+          const y = d3
+            .scaleLinear()
+            .domain(d3.extent(filteredData, (d) => d.value))
             .nice()
             .range([height, 0]);
 
           // Group data by date
-          const dateData = d3.group(filteredData, d => d.date);
+          const dateData = d3.group(filteredData, (d) => d.date);
 
-          const line = d3.line()
-            .x(d => x(d.timeObj))
-            .y(d => y(d.value))
+          const line = d3
+            .line()
+            .x((d) => x(d.timeObj))
+            .y((d) => y(d.value))
             .curve(d3.curveMonotoneX);
 
-          svg.selectAll('.line')
-            .data(Array.from(dateData, ([date, values]) => ({ date, values: values.sort((a, b) => a.timeObj - b.timeObj) })))
-            .enter().append('path')
+          svg
+            .selectAll('.line')
+            .data(
+              Array.from(dateData, ([date, values]) => ({
+                date,
+                values: values.sort((a, b) => a.timeObj - b.timeObj),
+              }))
+            )
+            .enter()
+            .append('path')
             .attr('class', 'line')
-            .attr('d', d => line(d.values))
-            .attr('stroke', d => colorScale(d.date))
+            .attr('d', (d) => line(d.values))
+            .attr('stroke', (d) => colorScale(d.date))
             .attr('stroke-width', 2)
             .attr('fill', 'none');
 
-          svg.append('g')
+          svg
+            .append('g')
             .attr('transform', `translate(0,${height})`)
             .call(d3.axisBottom(x));
 
-          svg.append('g')
-            .call(d3.axisLeft(y));
+          svg.append('g').call(d3.axisLeft(y));
 
           // Grid lines
-          svg.append('g')
+          svg
+            .append('g')
             .attr('class', 'grid')
             .attr('opacity', 0.3)
             .call(d3.axisBottom(x).tickSize(height).tickFormat(''));
 
-          svg.append('g')
+          svg
+            .append('g')
             .attr('class', 'grid')
             .attr('opacity', 0.3)
             .call(d3.axisLeft(y).tickSize(-width).tickFormat(''));
 
           // Add click label background
-          const clickLabelBg = svg.append('rect')
+          const clickLabelBg = svg
+            .append('rect')
             .attr('class', 'click-label-bg')
             .style('fill', '#333')
             .style('visibility', 'hidden')
             .style('pointer-events', 'none');
 
           // Add click label
-          const clickLabel = svg.append('text')
+          const clickLabel = svg
+            .append('text')
             .attr('class', 'click-label')
             .attr('x', 10)
             .attr('y', 20)
@@ -330,7 +510,8 @@
             .text('');
 
           // Add invisible overlay for click detection
-          svg.append('rect')
+          svg
+            .append('rect')
             .attr('class', 'click-overlay')
             .attr('x', 0)
             .attr('y', 0)
@@ -338,7 +519,7 @@
             .attr('height', height)
             .style('fill', 'none')
             .style('pointer-events', 'all')
-            .on('click', function(event) {
+            .on('click', function (event) {
               const [mouseX, mouseY] = d3.pointer(event);
               const timeClicked = x.invert(mouseX);
               const valueClicked = y.invert(mouseY);
@@ -351,7 +532,7 @@
                 for (const point of values) {
                   const distance = Math.sqrt(
                     Math.pow(x(point.timeObj) - mouseX, 2) +
-                    Math.pow(y(point.value) - mouseY, 2)
+                      Math.pow(y(point.value) - mouseY, 2)
                   );
                   if (distance < minDistance) {
                     minDistance = distance;
@@ -360,11 +541,14 @@
                 }
               }
 
-              if (closestPoint && minDistance < 50) { // Only show if close enough
+              if (closestPoint && minDistance < 50) {
+                // Only show if close enough
                 clickLabel
                   .attr('x', x(closestPoint.timeObj) + 5)
                   .attr('y', y(closestPoint.value) - 5)
-                  .text(`${formatTime(closestPoint.timeObj)}: ${closestPoint.value} mmol/L`)
+                  .text(
+                    `${formatTime(closestPoint.timeObj)}: ${closestPoint.value} mmol/L`
+                  )
                   .attr('fill', 'white')
                   .style('visibility', 'visible');
                 const bbox = clickLabel.node().getBBox();
