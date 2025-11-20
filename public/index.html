@@ -17,7 +17,7 @@
   </head>
   <body>
     <div class="container">
-      <h3>SIBIONICS CGM</h3>
+      <h1>SIBIONICS CGM</h1>
       <div class="dashboard-grid">
         <!-- Date Filter Sidebar -->
         <div id="date-filter-container" class="chart-container">
@@ -144,22 +144,22 @@
         drawChart(data);
       };
 
-      d3.json('/data').then((original) => {
-        original.shift(); // remove first element
+      // d3.json('/data').then((original) => {
+      //   original.shift(); // remove first element
 
-        const data = original.map((d) => {
-          const [datePart, timePart, _] = d.datetime.split(' ');
-          const dateObj = parseDate(datePart + ' ' + timePart);
-          return {
-            date: formatDate(dateObj),
-            dateObj: dateObj,
-            time: formatTime(dateObj),
-            timeObj: parseTime(timePart),
-            value: +d.value.replace(',', '.'),
-          };
-        });
-        drawChart(data);
-      });
+      //   const data = original.map((d) => {
+      //     const [datePart, timePart, _] = d.datetime.split(' ');
+      //     const dateObj = parseDate(datePart + ' ' + timePart);
+      //     return {
+      //       date: formatDate(dateObj),
+      //       dateObj: dateObj,
+      //       time: formatTime(dateObj),
+      //       timeObj: parseTime(timePart),
+      //       value: +d.value.replace(',', '.'),
+      //     };
+      //   });
+      //   drawChart(data);
+      // });
 
       const drawChart = (data) => {
         const uniqueDates = [...new Set(data.map((d) => d.date))];
